@@ -1,11 +1,28 @@
-<div align="center">
+# Norte Coxinha App
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Este é o aplicativo PWA de delivery da Norte Coxinha.
 
-  <h1>Built with AI Studio</h2>
+## Como integrar com o site existente (HostGator)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1. Faça o deploy deste aplicativo (por exemplo, na Vercel, Netlify ou no próprio HostGator em uma subpasta `/app`).
+2. No seu site HTML principal (`nortecoxinha.com.br`), adicione o seguinte botão onde desejar:
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+```html
+<a href="https://nortecoxinha.com.br/app" class="btn-delivery">
+  Peça agora pelo App
+</a>
+```
 
-</div>
+## Configuração do Banco de Dados (Supabase)
+
+1. Crie um projeto no [Supabase](https://supabase.com).
+2. Vá em **SQL Editor** e execute o conteúdo do arquivo `database.sql` que está na raiz deste projeto.
+3. Copie a URL e a Anon Key do Supabase (em Project Settings > API) e coloque no arquivo `.env`.
+
+## Configuração do Mercado Pago
+
+1. Crie uma conta no Mercado Pago e acesse o painel de desenvolvedores.
+2. Copie a Public Key e o Access Token.
+3. Coloque no arquivo `.env`.
+
+*Nota: A integração atual do Mercado Pago no frontend é simulada. Para uma integração completa e segura, você deve criar uma Edge Function no Supabase que utiliza o `MERCADO_PAGO_ACCESS_TOKEN` para gerar a preferência de pagamento e retornar a URL do checkout para o frontend.*
