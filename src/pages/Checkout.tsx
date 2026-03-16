@@ -63,6 +63,27 @@ export function Checkout() {
     setProcessing(true);
     setMessage('');
     try {
+      // 0. Garantir que o usuário existe na tabela public.users
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+        
+      if (!userProfile) {
+        const { error: userError } = await supabase.from('users').insert({
+          id: user.id,
+          nome: user.user_metadata?.nome || 'Usuário',
+          email: user.email,
+          telefone: user.user_metadata?.telefone || '',
+        });
+        
+        if (userError) {
+          console.error('Erro ao criar perfil de usuário:', userError);
+          throw new Error('Erro ao verificar perfil do usuário. Tente fazer login novamente.');
+        }
+      }
+
       // 1. Salvar o endereço
       const { data: addressData, error: addressError } = await supabase
         .from('addresses')
@@ -79,7 +100,7 @@ export function Checkout() {
 
       if (addressError) {
         console.error('Erro ao salvar endereço:', addressError);
-        throw new Error('Erro ao salvar endereço. Verifique as permissões do banco.');
+        throw new Error('Erro ao salvar endereço de entrega.');
       }
 
       // 2. Criar o pedido
