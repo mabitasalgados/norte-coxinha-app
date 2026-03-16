@@ -8,7 +8,11 @@ export function Checkout() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [endereco, setEndereco] = useState('');
+  const [rua, setRua] = useState('');
+  const [numero, setNumero] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [complemento, setComplemento] = useState('');
   const [formaPagamento, setFormaPagamento] = useState('pix');
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
@@ -20,6 +24,23 @@ export function Checkout() {
         navigate('/app/login');
       } else {
         setUser(session.user);
+        
+        // Verifica se o usuário tem registro na tabela public.users
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', session.user.id)
+          .single();
+          
+        // Se não tiver (por erro de RLS no cadastro), tenta inserir
+        if (!userProfile) {
+          await supabase.from('users').insert({
+            id: session.user.id,
+            nome: session.user.user_metadata?.nome || 'Usuário',
+            email: session.user.email,
+            telefone: session.user.user_metadata?.telefone || '',
+          });
+        }
       }
       setLoading(false);
     }
@@ -34,19 +55,39 @@ export function Checkout() {
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!endereco) {
-      setMessage('Por favor, informe o endereço de entrega.');
+    if (!rua || !numero || !bairro || !cidade) {
+      setMessage('Por favor, preencha todos os campos obrigatórios do endereço.');
       return;
     }
 
     setProcessing(true);
     setMessage('');
     try {
-      // Create order
+      // 1. Salvar o endereço
+      const { data: addressData, error: addressError } = await supabase
+        .from('addresses')
+        .insert({
+          user_id: user.id,
+          rua,
+          numero,
+          bairro,
+          cidade,
+          complemento
+        })
+        .select()
+        .single();
+
+      if (addressError) {
+        console.error('Erro ao salvar endereço:', addressError);
+        throw new Error('Erro ao salvar endereço. Verifique as permissões do banco.');
+      }
+
+      // 2. Criar o pedido
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: user.id,
+          endereco_id: addressData.id,
           valor_total: getTotal(),
           forma_pagamento: formaPagamento,
           status: 'pendente',
@@ -55,9 +96,12 @@ export function Checkout() {
         .select()
         .single();
 
-      if (orderError) throw orderError;
+      if (orderError) {
+        console.error('Erro ao criar pedido:', orderError);
+        throw new Error('Erro ao criar pedido.');
+      }
 
-      // Create order items
+      // 3. Criar os itens do pedido
       const orderItems = items.map(item => ({
         order_id: order.id,
         product_id: item.id,
@@ -69,9 +113,12 @@ export function Checkout() {
         .from('order_items')
         .insert(orderItems);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        console.error('Erro ao salvar itens:', itemsError);
+        throw new Error('Erro ao salvar itens do pedido.');
+      }
 
-      // Clear cart
+      // Limpar carrinho e redirecionar
       clearCart();
       
       if (formaPagamento === 'cartao' || formaPagamento === 'pix') {
@@ -84,7 +131,7 @@ export function Checkout() {
       
     } catch (error: any) {
       console.error('Erro ao finalizar pedido:', error);
-      setMessage('Erro ao finalizar pedido. Tente novamente.');
+      setMessage(error.message || 'Erro ao finalizar pedido. Tente novamente.');
     } finally {
       setProcessing(false);
     }
@@ -95,7 +142,7 @@ export function Checkout() {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Finalizar Pedido</h1>
       
       {message && (
-        <div className="bg-blue-50 text-blue-800 p-4 rounded-lg mb-6">
+        <div className={`p-4 rounded-lg mb-6 ${message.includes('Erro') ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
           {message}
         </div>
       )}
@@ -103,14 +150,68 @@ export function Checkout() {
       <form onSubmit={handleCheckout} className="space-y-8">
         <div className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">Endereço de Entrega</h2>
-          <textarea
-            required
-            value={endereco}
-            onChange={(e) => setEndereco(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#d62828] focus:border-[#d62828]"
-            rows={3}
-            placeholder="Rua, Número, Bairro, Complemento"
-          ></textarea>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Rua *</label>
+                <input
+                  type="text"
+                  required
+                  value={rua}
+                  onChange={(e) => setRua(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#d62828] focus:border-[#d62828]"
+                  placeholder="Nome da rua"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Número *</label>
+                <input
+                  type="text"
+                  required
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#d62828] focus:border-[#d62828]"
+                  placeholder="123"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bairro *</label>
+                <input
+                  type="text"
+                  required
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#d62828] focus:border-[#d62828]"
+                  placeholder="Seu bairro"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cidade *</label>
+                <input
+                  type="text"
+                  required
+                  value={cidade}
+                  onChange={(e) => setCidade(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#d62828] focus:border-[#d62828]"
+                  placeholder="Sua cidade"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Complemento / Ponto de Referência</label>
+              <input
+                type="text"
+                value={complemento}
+                onChange={(e) => setComplemento(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#d62828] focus:border-[#d62828]"
+                placeholder="Apto, Bloco, Casa de esquina..."
+              />
+            </div>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-md p-6">
