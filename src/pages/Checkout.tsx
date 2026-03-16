@@ -10,6 +10,7 @@ export function Checkout() {
   const [processing, setProcessing] = useState(false);
   const [endereco, setEndereco] = useState('');
   const [formaPagamento, setFormaPagamento] = useState('pix');
+  const [message, setMessage] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,8 +31,6 @@ export function Checkout() {
     navigate('/app/carrinho');
     return null;
   }
-
-  const [message, setMessage] = useState('');
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
